@@ -1,13 +1,3 @@
----
-license: apache-2.0
-language:
-- ko
-library_name: transformers
-pipeline_tag: automatic-speech-recognition
-tags:
-- whisper
----
-
 # 실시간 한국어 음성 인식 (STT) 모듈
 
 이 프로젝트는 Hugging Face의 `SungBeom/whisper-small-ko` 모델을 사용하여 마이크로부터 실시간 음성 입력을 받아 한국어 텍스트로 변환하는 기능을 제공합니다.
