@@ -35,12 +35,10 @@
     Hugging Face Hub로부터 원하는 모델 파일을 다운로드하여 `models/` 디렉토리 안에 저장하세요.
 
     프로젝트에 사용한 모델의 예시는 다음과 같습니다.
-
     - openai/whisper-large-v3-turbo
     - o0dimplz0o/Whisper-Large-v3-turbo-STT-Zeroth-KO-v2
     - openai/whisper-small
     - SungBeom/whisper-small-ko
-    ```
 
 ## 사용 방법
 
