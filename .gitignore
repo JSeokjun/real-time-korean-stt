@@ -20,4 +20,4 @@ Thumbs.db
 results/
 
 # Model files
-models/*.bin
+models/*

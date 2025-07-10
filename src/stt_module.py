@@ -6,10 +6,18 @@ import time
 from datetime import datetime
 import os
 
+# --- 모델 path 모음 ---
+models = [
+    "whisper-large-v3-turbo",
+    "Whisper-Large-v3-turbo-STT-Zeroth-KO-v2",
+    "whisper-small",
+    "whisper-small-ko"
+]
+
 # --- 경로 설정 ---
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-MODEL_PATH = os.path.join(PROJECT_ROOT, "models")
+MODEL_PATH = os.path.join(PROJECT_ROOT, f"models/{models[0]}")
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
 
 # --- 설정 ---
