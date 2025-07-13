@@ -1,7 +1,6 @@
-transformers
 torch
+transformers
 pyaudio
-numpy
-accelerate 
 noisereduce
+numpy
 torchaudio
