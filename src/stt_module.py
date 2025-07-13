@@ -1,16 +1,16 @@
 import torch
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
 import pyaudio
 import numpy as np
 import time
-from datetime import datetime
 import os
+import noisereduce as nr
+from datetime import datetime
+from transformers import WhisperProcessor, WhisperForConditionalGeneration
 
 # --- 모델 path 모음 ---
 models = [
     "whisper-large-v3-turbo",
     "Whisper-Large-v3-turbo-STT-Zeroth-KO-v2",
-    "whisper-small",
     "whisper-small-ko"
 ]
 
@@ -26,8 +26,9 @@ FORMAT = pyaudio.paInt16  # 오디오 포맷 (16비트)
 CHANNELS = 1  # 모노 채널
 RATE = 16000  # 샘플링 레이트 (Whisper는 16000Hz를 사용)
 SILENCE_THRESHOLD = 1000  # 정적을 음성으로 인식하지 않기 위한 임계값
-SPEECH_END_THRESHOLD = 0.5  # 발화가 끝났다고 판단하는 침묵 시간 (초)
+SPEECH_END_THRESHOLD = 1  # 발화가 끝났다고 판단하는 침묵 시간 (초)
 PAUSE_DURATION = 10 # 대화가 끝났다고 판단하는 침묵 시간 (초)
+NOISE_LEARNING_DURATION = 2  # 시작 시, 노이즈를 학습할 시간 (초)
 
 def save_transcript(text):
     """인식된 텍스트를 타임스탬프 파일로 저장"""
@@ -70,6 +71,17 @@ def main():
                     input=True,
                     frames_per_buffer=CHUNK)
 
+    print(f"\n{NOISE_LEARNING_DURATION}초간 주변 소음을 학습합니다. 조용히 해주세요...")
+    
+    # 노이즈 프로필 생성
+    noise_frames = []
+    for _ in range(0, int(RATE / CHUNK * NOISE_LEARNING_DURATION)):
+        data = stream.read(CHUNK, exception_on_overflow=False)
+        noise_frames.append(data)
+    
+    noise_sample = np.frombuffer(b''.join(noise_frames), dtype=np.int16)
+    
+    print("소음 학습 완료.")
     print("\n실시간 음성 인식을 시작합니다. (Ctrl+C로 종료)")
 
     full_transcript = ""
@@ -85,16 +97,19 @@ def main():
             while True:
                 data = stream.read(CHUNK, exception_on_overflow=False)
                 audio_data = np.frombuffer(data, dtype=np.int16)
+
+                # 잡음 제거
+                denoised_data = nr.reduce_noise(y=audio_data, sr=RATE, y_noise=noise_sample, n_fft=CHUNK)
                 
                 # 현재 시간에 따라 PAUSE_DURATION 체크
                 if time.time() - last_speech_time > PAUSE_DURATION and full_transcript:
                     save_transcript(full_transcript)
                     full_transcript = "" # 저장 후 초기화
                 
-                if np.max(audio_data) > SILENCE_THRESHOLD:
+                if np.max(denoised_data) > SILENCE_THRESHOLD:
                     print("음성 감지됨, 녹음 시작...")
                     is_speaking = True
-                    frames.append(data)
+                    frames.append(denoised_data.tobytes())
                     last_speech_time = time.time()
                     last_active_time = time.time()
                     break
@@ -102,10 +117,13 @@ def main():
             # 음성이 진행되는 동안 녹음
             while is_speaking:
                 data = stream.read(CHUNK, exception_on_overflow=False)
-                frames.append(data)
                 audio_data = np.frombuffer(data, dtype=np.int16)
+
+                # 잡음 제거
+                denoised_data = nr.reduce_noise(y=audio_data, sr=RATE, y_noise=noise_sample, n_fft=CHUNK)
+                frames.append(denoised_data.tobytes())
                 
-                if np.max(audio_data) > SILENCE_THRESHOLD:
+                if np.max(denoised_data) > SILENCE_THRESHOLD:
                     last_active_time = time.time()
                     last_speech_time = time.time()
                 

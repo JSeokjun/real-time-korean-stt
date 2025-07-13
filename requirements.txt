@@ -3,3 +3,5 @@ torch
 pyaudio
 numpy
 accelerate 
+noisereduce
+torchaudio
