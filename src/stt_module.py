@@ -21,11 +21,11 @@ MODEL_PATH = os.path.join(PROJECT_ROOT, f"models/{models[0]}")
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
 
 # --- 설정 ---
-CHUNK = 1024  # 한 번에 읽어올 오디오 데이터의 크기
+CHUNK = 512  # 한 번에 읽어올 오디오 데이터의 크기
 FORMAT = pyaudio.paInt16  # 오디오 포맷 (16비트)
 CHANNELS = 1  # 모노 채널
 RATE = 16000  # 샘플링 레이트 (Whisper는 16000Hz를 사용)
-SILENCE_THRESHOLD = 1000  # 정적을 음성으로 인식하지 않기 위한 임계값
+VAD_THRESHOLD = 0.5  # 음성으로 판단할 확률 임계값
 SPEECH_END_THRESHOLD = 1  # 발화가 끝났다고 판단하는 침묵 시간 (초)
 PAUSE_DURATION = 10 # 대화가 끝났다고 판단하는 침묵 시간 (초)
 NOISE_LEARNING_DURATION = 2  # 시작 시, 노이즈를 학습할 시간 (초)
@@ -62,6 +62,22 @@ def main():
         return
 
     print("모델 로딩 완료.")
+
+    # --- Silero VAD 모델 로드 ---
+    try:
+        vad_model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
+                                          model='silero_vad',
+                                          force_reload=False,
+                                          onnx=False) # mps device는 onnx=False 필요
+        (get_speech_timestamps,
+         save_audio,
+         read_audio,
+         VADIterator,
+         collect_chunks) = utils
+        print("Silero VAD 모델 로딩 완료.")
+    except Exception as e:
+        print(f"Silero VAD 모델 로딩 중 오류가 발생했습니다: {e}")
+        return
 
     # PyAudio 초기화
     p = pyaudio.PyAudio()
@@ -101,13 +117,20 @@ def main():
                 # 잡음 제거
                 denoised_data = nr.reduce_noise(y=audio_data, sr=RATE, y_noise=noise_sample, n_fft=CHUNK)
                 
+                # VAD를 위한 데이터 준비 (float32 텐서)
+                audio_float32 = denoised_data.astype(np.float32) / 32768.0
+                audio_tensor = torch.from_numpy(audio_float32)
+
+                # 음성 확률 확인
+                speech_prob = vad_model(audio_tensor, RATE).item()
+
                 # 현재 시간에 따라 PAUSE_DURATION 체크
                 if time.time() - last_speech_time > PAUSE_DURATION and full_transcript:
                     save_transcript(full_transcript)
                     full_transcript = "" # 저장 후 초기화
                 
-                if np.max(denoised_data) > SILENCE_THRESHOLD:
-                    print("음성 감지됨, 녹음 시작...")
+                if speech_prob > VAD_THRESHOLD:
+                    print(f"음성 감지됨 (확률: {speech_prob:.2f}), 녹음 시작...")
                     is_speaking = True
                     frames.append(denoised_data.tobytes())
                     last_speech_time = time.time()
@@ -122,8 +145,15 @@ def main():
                 # 잡음 제거
                 denoised_data = nr.reduce_noise(y=audio_data, sr=RATE, y_noise=noise_sample, n_fft=CHUNK)
                 frames.append(denoised_data.tobytes())
+
+                # VAD를 위한 데이터 준비
+                audio_float32 = denoised_data.astype(np.float32) / 32768.0
+                audio_tensor = torch.from_numpy(audio_float32)
+
+                # 음성 확률 확인
+                speech_prob = vad_model(audio_tensor, RATE).item()
                 
-                if np.max(denoised_data) > SILENCE_THRESHOLD:
+                if speech_prob > VAD_THRESHOLD:
                     last_active_time = time.time()
                     last_speech_time = time.time()
                 
