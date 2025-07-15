@@ -166,7 +166,11 @@ def main():
                     if len(audio_np) > 0:
                         input_features = processor(audio_np, sampling_rate=RATE, return_tensors="pt").input_features
                         
-                        predicted_ids = model.generate(input_features.to(device))
+                        predicted_ids = model.generate(
+                            input_features.to(device),
+                            language="ko", 
+                            task="transcribe"
+                        )
                         
                         transcription = processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
                         
