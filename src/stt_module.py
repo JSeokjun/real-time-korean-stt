@@ -5,19 +5,19 @@ import time
 import os
 import noisereduce as nr
 from datetime import datetime
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
+from transformers import WhisperProcessor, WhisperForConditionalGeneration, GenerationConfig
 
 # --- 모델 path 모음 ---
 models = [
     "whisper-large-v3-turbo",
-    "Whisper-Large-v3-turbo-STT-Zeroth-KO-v2",
+    "whisper-small",
     "whisper-small-ko"
 ]
 
 # --- 경로 설정 ---
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-MODEL_PATH = os.path.join(PROJECT_ROOT, f"models/{models[0]}")
+MODEL_PATH = os.path.join(PROJECT_ROOT, f"models/{models[2]}")
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
 
 # --- 설정 ---
@@ -49,12 +49,18 @@ def main():
     """실시간 음성 인식 메인 함수"""
     # 모델 및 프로세서 로드
     print(f"모델을 로딩합니다... ({MODEL_PATH})")
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    device = "cpu"
     print(f"사용 디바이스: {device}")
 
     try:
         processor = WhisperProcessor.from_pretrained(MODEL_PATH)
         model = WhisperForConditionalGeneration.from_pretrained(MODEL_PATH).to(device)
+        
+        # 'whisper-small-ko' 모델의 generation_config가 오래되어 'language' 인자를 지원하지 않는 문제를 해결하기 위해
+        # 'openai/whisper-small' 모델의 generation_config를 명시적으로 로드하여 설정합니다.
+        generation_config = GenerationConfig.from_pretrained("models/whisper-small")
+        model.generation_config = generation_config
+        
         model.config.forced_decoder_ids = None
     except Exception as e:
         print(f"모델 로딩 중 오류가 발생했습니다: {e}")
