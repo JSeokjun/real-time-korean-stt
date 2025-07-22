@@ -6,6 +6,7 @@ import os
 import noisereduce as nr
 from datetime import datetime
 from transformers import WhisperProcessor, WhisperForConditionalGeneration, GenerationConfig
+from llm_module import GemmaRK3588
 
 # --- 모델 path 모음 ---
 models = [
@@ -17,7 +18,9 @@ models = [
 # --- 경로 설정 ---
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-MODEL_PATH = os.path.join(PROJECT_ROOT, f"models/{models[2]}")
+MODEL_PATH = os.path.join(PROJECT_ROOT, f"models/{models[0]}")
+LLM_MODEL_DIR = os.path.join(PROJECT_ROOT, "models/unsloth-gemma-3-4b-it-rk3588-1.2.1")
+RKLLM_LIB_PATH = os.path.join(PROJECT_ROOT, "lib/librkllmrt.so")
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
 
 # --- 설정 ---
@@ -25,10 +28,10 @@ CHUNK = 512  # 한 번에 읽어올 오디오 데이터의 크기
 FORMAT = pyaudio.paInt16  # 오디오 포맷 (16비트)
 CHANNELS = 1  # 모노 채널
 RATE = 16000  # 샘플링 레이트 (Whisper는 16000Hz를 사용)
-VAD_THRESHOLD = 0.5  # 음성으로 판단할 확률 임계값
-SPEECH_END_THRESHOLD = 1  # 발화가 끝났다고 판단하는 침묵 시간 (초)
+VAD_THRESHOLD = 0.3  # 음성으로 판단할 확률 임계값
+SPEECH_END_THRESHOLD = 3  # 발화가 끝났다고 판단하는 침묵 시간 (초)
 PAUSE_DURATION = 10 # 대화가 끝났다고 판단하는 침묵 시간 (초)
-NOISE_LEARNING_DURATION = 2  # 시작 시, 노이즈를 학습할 시간 (초)
+NOISE_LEARNING_DURATION = 5 # 시작 시, 노이즈를 학습할 시간 (초)
 
 def save_transcript(text):
     """인식된 텍스트를 타임스탬프 파일로 저장"""
@@ -49,7 +52,7 @@ def main():
     """실시간 음성 인식 메인 함수"""
     # 모델 및 프로세서 로드
     print(f"모델을 로딩합니다... ({MODEL_PATH})")
-    device = "cpu"
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
     print(f"사용 디바이스: {device}")
 
     try:
@@ -58,8 +61,9 @@ def main():
         
         # 'whisper-small-ko' 모델의 generation_config가 오래되어 'language' 인자를 지원하지 않는 문제를 해결하기 위해
         # 'openai/whisper-small' 모델의 generation_config를 명시적으로 로드하여 설정합니다.
-        generation_config = GenerationConfig.from_pretrained("models/whisper-small")
-        model.generation_config = generation_config
+        if models == "whisper-small-ko" :
+            generation_config = GenerationConfig.from_pretrained("models/whisper-small")
+            model.generation_config = generation_config
         
         model.config.forced_decoder_ids = None
     except Exception as e:
@@ -68,6 +72,21 @@ def main():
         return
 
     print("모델 로딩 완료.")
+
+    # --- LLM 모델 로드 ---
+    llm = None
+    try:
+        if os.path.exists(LLM_MODEL_DIR) and os.path.exists(RKLLM_LIB_PATH):
+            print("\nLLM 모델을 로딩합니다...")
+            llm = GemmaRK3588(model_dir_path=LLM_MODEL_DIR, rkllm_lib_path=RKLLM_LIB_PATH)
+            print("LLM 모델 로딩 완료.")
+        else:
+            print("\n[경고] LLM 모델 또는 라이브러리 경로를 찾을 수 없어 LLM 기능을 비활성화합니다.")
+            print(f"  - 모델 경로 확인: {LLM_MODEL_DIR}")
+            print(f"  - 라이브러리 경로 확인: {RKLLM_LIB_PATH}")
+    except Exception as e:
+        print(f"LLM 모델 로딩 중 오류 발생: {e}")
+
 
     # --- Silero VAD 모델 로드 ---
     try:
@@ -130,10 +149,27 @@ def main():
                 # 음성 확률 확인
                 speech_prob = vad_model(audio_tensor, RATE).item()
 
-                # 현재 시간에 따라 PAUSE_DURATION 체크
+                # 대화가 끝났는지 확인 (PAUSE_DURATION)
                 if time.time() - last_speech_time > PAUSE_DURATION and full_transcript:
+                    print("\n--- 긴 침묵 감지 ---")
                     save_transcript(full_transcript)
-                    full_transcript = "" # 저장 후 초기화
+                    
+                    if llm:
+                        print(f"\n[LLM 요청] 다음 텍스트를 분석합니다:\n{full_transcript}")
+                        try:
+                            # LLM에 분석 요청
+                            llm_response = llm.generate(
+                                full_transcript, 
+                                system_prompt="You are a helpful assistant who analyzes the given text and provides a concise summary or insight."
+                            )
+                            print("\n--- LLM 응답 ---")
+                            print(llm_response)
+                            print("------------------")
+                        except Exception as e:
+                            print(f"\n[LLM 오류] 응답 생성 중 오류가 발생했습니다: {e}")
+
+                    full_transcript = "" # 분석 및 저장 후 초기화
+                    last_speech_time = time.time() # 중복 분석 방지를 위해 시간 초기화
                 
                 if speech_prob > VAD_THRESHOLD:
                     print(f"음성 감지됨 (확률: {speech_prob:.2f}), 녹음 시작...")
