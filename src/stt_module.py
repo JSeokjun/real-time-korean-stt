@@ -18,9 +18,9 @@ models = [
 # --- 경로 설정 ---
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-MODEL_PATH = os.path.join(PROJECT_ROOT, f"models/{models[0]}")
+MODEL_PATH = os.path.join(PROJECT_ROOT, f"models/{models[2]}")
 NPU_LLM_MODEL_DIR = os.path.join(PROJECT_ROOT, "models/unsloth-gemma-3-4b-it-rk3588-1.2.1")
-CPU_LLM_MODEL_DIR = os.path.join(PROJECT_ROOT, "models/gemma-3-4b-it")
+CPU_LLM_MODEL_DIR = os.path.join(PROJECT_ROOT, "models/gemma-3-1b-it")
 RKLLM_LIB_PATH = os.path.join(PROJECT_ROOT, "lib/librkllmrt.so")
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
 
@@ -62,9 +62,9 @@ def main():
         
         # 'whisper-small-ko' 모델의 generation_config가 오래되어 'language' 인자를 지원하지 않는 문제를 해결하기 위해
         # 'openai/whisper-small' 모델의 generation_config를 명시적으로 로드하여 설정합니다.
-        if models == "whisper-small-ko" :
-            generation_config = GenerationConfig.from_pretrained("models/whisper-small")
-            model.generation_config = generation_config
+        # if models == "whisper-small-ko" :
+        generation_config = GenerationConfig.from_pretrained("models/whisper-small")
+        model.generation_config = generation_config
         
         model.config.forced_decoder_ids = None
     except Exception as e:

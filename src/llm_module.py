@@ -1,8 +1,10 @@
 import os
 import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM\
+
 try:
     from rkllm.api import RKLLM
-    from transformers import AutoTokenizer, AutoModelForCausalLM
+
 except ImportError:
     print("경고: rkllm 모듈을 찾을 수 없습니다. LLM 기능을 사용할 수 없습니다.")
     print("Rockchip 장치에서 RKLLM 런타임이 설치된 상태로 실행하고 있는지 확인하십시오.")

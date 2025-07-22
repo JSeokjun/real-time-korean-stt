@@ -4,3 +4,4 @@ pyaudio
 noisereduce
 numpy
 torchaudio
+timm
