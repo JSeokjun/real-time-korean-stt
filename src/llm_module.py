@@ -36,7 +36,7 @@ class GemmaCPU:
         print(f"Hugging Face Gemma 모델을 성공적으로 로드했습니다. ({device})")
 
 
-    def generate(self, prompt, system_prompt="당신은 주어진 텍스트를 분석하고 간결한 요약이나 통찰력을 제공하는 유용한 어시스턴트입니다."):
+    def generate(self, prompt, system_prompt):
         """
         주어진 프롬프트를 기반으로 텍스트를 생성합니다.
 
@@ -115,7 +115,7 @@ class GemmaRK3588:
 
         print("Gemma LLM 모델을 성공적으로 로드했습니다.")
 
-    def generate(self, prompt, system_prompt="당신은 주어진 텍스트를 분석하고 간결한 요약이나 통찰력을 제공하는 유용한 어시스턴트입니다."):
+    def generate(self, prompt, system_prompt):
         """
         주어진 프롬프트를 기반으로 텍스트를 생성합니다.
 

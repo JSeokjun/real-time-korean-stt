@@ -18,9 +18,9 @@ models = [
 # --- 경로 설정 ---
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-MODEL_PATH = os.path.join(PROJECT_ROOT, f"models/{models[2]}")
+MODEL_PATH = os.path.join(PROJECT_ROOT, f"models/{models[0]}")
 NPU_LLM_MODEL_DIR = os.path.join(PROJECT_ROOT, "models/unsloth-gemma-3-4b-it-rk3588-1.2.1")
-CPU_LLM_MODEL_DIR = os.path.join(PROJECT_ROOT, "models/gemma-3-1b-it")
+CPU_LLM_MODEL_DIR = os.path.join(PROJECT_ROOT, "models/gemma-3-4b-it")
 RKLLM_LIB_PATH = os.path.join(PROJECT_ROOT, "lib/librkllmrt.so")
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
 
@@ -33,6 +33,26 @@ VAD_THRESHOLD = 0.3  # 음성으로 판단할 확률 임계값
 SPEECH_END_THRESHOLD = 3  # 발화가 끝났다고 판단하는 침묵 시간 (초)
 PAUSE_DURATION = 10 # 대화가 끝났다고 판단하는 침묵 시간 (초)
 NOISE_LEARNING_DURATION = 5 # 시작 시, 노이즈를 학습할 시간 (초)
+
+system_prompt = """
+[역할]
+당신은 아파트/건물 안내방송 STT(음성인식 텍스트) [원문]을 분석하고, 핵심 정보를 정확하게 추출하여 지정된 [형식]으로 요약하는 '안내방송 분석 전문가'입니다.
+
+[임무]
+핵심 정보 추출: 안내방송의 핵심 내용(누가, 언제, 어디서, 무엇을, 왜, 어떻게)을 파악합니다.
+키워드 분류: [keyword_label_list]에서 핵심 내용과 가장 관련이 깊은 키워드를 단 하나만 선택합니다.
+지정된 형식으로 출력: 분석 결과를 반드시 [형식]에 맞춰 JSON 코드로 출력합니다.
+
+[keyword_label_list]
+["층간소음", "흡연 문제", "펫티켓", "주차 관리", "쓰레기 배출", "화재", "태풍", "정전", "단수", "급수", "한파 및 동파", "시설 점검", "소독", "청소", "범죄 및 안전사고 예방", "실종 및 보호", "단지 운영 및 행정", "커뮤니티 활동 및 일반안내", "지진"]
+
+[형식]
+{
+"title" : "안내방송의 주요 내용을 한눈에 파악할 수 있는 제목 (1문장)",
+"keyword" : "keyword_label_list에서 선택한 단일 키워드입니다.",
+"summary" : "안내방송의 핵심 내용을 요약하여 작성합니다."
+}
+"""
 
 def save_transcript(text):
     """인식된 텍스트를 타임스탬프 파일로 저장"""
@@ -63,8 +83,8 @@ def main():
         # 'whisper-small-ko' 모델의 generation_config가 오래되어 'language' 인자를 지원하지 않는 문제를 해결하기 위해
         # 'openai/whisper-small' 모델의 generation_config를 명시적으로 로드하여 설정합니다.
         # if models == "whisper-small-ko" :
-        generation_config = GenerationConfig.from_pretrained("models/whisper-small")
-        model.generation_config = generation_config
+        # generation_config = GenerationConfig.from_pretrained("models/whisper-small")
+        # model.generation_config = generation_config
         
         model.config.forced_decoder_ids = None
     except Exception as e:
@@ -173,7 +193,7 @@ def main():
                             # LLM에 분석 요청
                             llm_response = llm.generate(
                                 full_transcript, 
-                                system_prompt="당신은 한국어 대화의 핵심 내용을 파악하고, 대화의 주제와 주요 결론을 간결하게 요약하는 전문 분석가입니다. "
+                                system_prompt=system_prompt
                             )
                             print("\n--- LLM 응답 ---")
                             print(llm_response)
