@@ -6,7 +6,7 @@ import os
 import noisereduce as nr
 from datetime import datetime
 from transformers import WhisperProcessor, WhisperForConditionalGeneration, GenerationConfig
-from llm_module import GemmaRK3588, GemmaCPU
+from llm_module import GemmaCPU
 
 # --- 모델 path 모음 ---
 models = [
@@ -19,9 +19,7 @@ models = [
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 MODEL_PATH = os.path.join(PROJECT_ROOT, f"models/{models[0]}")
-NPU_LLM_MODEL_DIR = os.path.join(PROJECT_ROOT, "models/unsloth-gemma-3-4b-it-rk3588-1.2.1")
 CPU_LLM_MODEL_DIR = os.path.join(PROJECT_ROOT, "models/gemma-3-4b-it")
-RKLLM_LIB_PATH = os.path.join(PROJECT_ROOT, "lib/librkllmrt.so")
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
 
 # --- 설정 ---
@@ -96,29 +94,16 @@ def main():
 
     # --- LLM 모델 로드 ---
     llm = None
-    # 1. NPU(RKLLM) 모델 우선 시도
     try:
-        if os.path.exists(NPU_LLM_MODEL_DIR) and os.path.exists(RKLLM_LIB_PATH):
-            print("\nNPU 가속 LLM 모델(GemmaRK3588)을 로딩합니다...")
-            llm = GemmaRK3588(model_dir_path=NPU_LLM_MODEL_DIR, rkllm_lib_path=RKLLM_LIB_PATH)
-            print("NPU LLM 모델 로딩 완료.")
+        if os.path.exists(CPU_LLM_MODEL_DIR):
+            print(f"\nCPU/MPS LLM 모델(GemmaCPU)을 로딩합니다... (장치: {device})")
+            llm = GemmaCPU(model_dir_path=CPU_LLM_MODEL_DIR, device=device)
+            print("CPU/MPS LLM 모델 로딩 완료.")
         else:
-            print("\nNPU LLM 모델/라이브러리를 찾을 수 없습니다. CPU/MPS 모델로 대체를 시도합니다.")
-            raise FileNotFoundError("NPU 모델 경로 또는 라이브러리 없음")
-
-    except Exception as e:
-        print(f"NPU LLM 모델 로딩 실패: {e}")
-        # 2. CPU/MPS 모델로 대체 시도
-        try:
-            if os.path.exists(CPU_LLM_MODEL_DIR):
-                print(f"\nCPU/MPS LLM 모델(GemmaCPU)을 로딩합니다... (장치: {device})")
-                llm = GemmaCPU(model_dir_path=CPU_LLM_MODEL_DIR, device=device)
-                print("CPU/MPS LLM 모델 로딩 완료.")
-            else:
-                 print("\n[경고] CPU 대체 LLM 모델 경로를 찾을 수 없어 LLM 기능을 비활성화합니다.")
-                 print(f"  - 모델 경로 확인: {CPU_LLM_MODEL_DIR}")
-        except Exception as cpu_e:
-            print(f"CPU/MPS LLM 모델 로딩 중 오류 발생: {cpu_e}")
+                print("\n[경고] CPU 대체 LLM 모델 경로를 찾을 수 없어 LLM 기능을 비활성화합니다.")
+                print(f"  - 모델 경로 확인: {CPU_LLM_MODEL_DIR}")
+    except Exception as cpu_e:
+        print(f"CPU/MPS LLM 모델 로딩 중 오류 발생: {cpu_e}")
 
 
     # --- Silero VAD 모델 로드 ---
