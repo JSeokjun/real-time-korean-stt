@@ -123,11 +123,22 @@ class GemmaRK3588:
 
         try:
             print(f"CMake 실행: {' '.join(cmake_cmd)}")
-            subprocess.run(cmake_cmd, cwd=self.build_dir, check=True, capture_output=True, text=True)
+            # stderr=subprocess.STDOUT 옵션으로 모든 출력을 하나로 합쳐서 확인
+            cmake_result = subprocess.run(cmake_cmd, cwd=self.build_dir, check=True, capture_output=True, text=True)
+            print("--- CMake Output ---")
+            print(cmake_result.stdout)
+            if cmake_result.stderr:
+                print("--- CMake Error ---")
+                print(cmake_result.stderr)
             
             print(f"Make 실행: {' '.join(make_cmd)}")
-            subprocess.run(make_cmd, cwd=self.build_dir, check=True, capture_output=True, text=True)
-            
+            make_result = subprocess.run(make_cmd, cwd=self.build_dir, check=True, capture_output=True, text=True)
+            print("--- Make Output ---")
+            print(make_result.stdout)
+            if make_result.stderr:
+                print("--- Make Error ---")
+                print(make_result.stderr)
+
             print("컴파일 성공!")
         except FileNotFoundError:
             raise RuntimeError("CMake 또는 Make를 찾을 수 없습니다. 'sudo apt install cmake build-essential'을 실행하여 설치해주세요.")
