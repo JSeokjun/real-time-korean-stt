@@ -5,8 +5,12 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # RKLLM 라이브러리 및 헤더 파일 경로 설정
-# 이 경로는 Python 스크립트에서 동적으로 전달됩니다.
-set(RKLLM_RUNTIME_DIR "" CACHE PATH "Path to rknn-llm/rkllm-runtime/Linux directory")
+# Python 스크립트에서 -D 옵션으로 이 경로를 전달합니다.
+if(NOT RKLLM_RUNTIME_DIR)
+    message(FATAL_ERROR "RKLLM_RUNTIME_DIR path must be passed via -D option.")
+endif()
+
+message(STATUS "Using RKLLM_RUNTIME_DIR: ${RKLLM_RUNTIME_DIR}")
 
 # 헤더 파일 경로 추가
 include_directories(${RKLLM_RUNTIME_DIR}/librkllm_api/include)

@@ -101,8 +101,12 @@ class GemmaRK3588:
 
     def _build_inference_app(self):
         """CMake를 사용하여 C++ 추론 애플리케이션을 빌드합니다."""
-        if not os.path.exists(self.build_dir):
-            os.makedirs(self.build_dir)
+        # 이전 빌드가 문제를 일으키지 않도록 build 디렉터리 정리
+        if os.path.exists(self.build_dir):
+            import shutil
+            shutil.rmtree(self.build_dir)
+        
+        os.makedirs(self.build_dir)
         
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
         rkllm_runtime_dir = os.path.join(project_root, "rknn-llm/rkllm-runtime/Linux")
