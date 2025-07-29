@@ -3,6 +3,7 @@ import pyaudio
 import numpy as np
 import time
 import os
+import json
 import noisereduce as nr
 from datetime import datetime
 from transformers import WhisperProcessor, WhisperForConditionalGeneration, GenerationConfig
@@ -19,8 +20,9 @@ models = [
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 MODEL_PATH = os.path.join(PROJECT_ROOT, f"models/{models[0]}")
-CPU_LLM_MODEL_DIR = os.path.join(PROJECT_ROOT, "models/gemma-3-4b-it")
-RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
+CPU_LLM_MODEL_DIR = os.path.join(PROJECT_ROOT, "models/gemma-3-1b-it")
+TRANSCRIPT_DIR = os.path.join(PROJECT_ROOT, "transcripts")
+RESULT_DIR = os.path.join(PROJECT_ROOT, "results")
 
 # --- 설정 ---
 CHUNK = 512  # 한 번에 읽어올 오디오 데이터의 크기
@@ -40,6 +42,7 @@ system_prompt = """
 핵심 정보 추출: 안내방송의 핵심 내용(누가, 언제, 어디서, 무엇을, 왜, 어떻게)을 파악합니다.
 키워드 분류: [keyword_label_list]에서 핵심 내용과 가장 관련이 깊은 키워드를 단 하나만 선택합니다.
 지정된 형식으로 출력: 분석 결과를 반드시 [형식]에 맞춰 JSON 코드로 출력합니다.
+안내 방송 판별: 만약 원문이 안내 방송이 아니라고 판단되면 [에러 형식]을 따릅니다.
 
 [keyword_label_list]
 ["층간소음", "흡연 문제", "펫티켓", "주차 관리", "쓰레기 배출", "화재", "태풍", "정전", "단수", "급수", "한파 및 동파", "시설 점검", "소독", "청소", "범죄 및 안전사고 예방", "실종 및 보호", "단지 운영 및 행정", "커뮤니티 활동 및 일반안내", "지진"]
@@ -50,21 +53,77 @@ system_prompt = """
 "keyword" : "keyword_label_list에서 선택한 단일 키워드입니다.",
 "summary" : "안내방송의 핵심 내용을 요약하여 작성합니다."
 }
+
+[에러 형식]
+{
+"error" : "안내방송이 아닙니다."
+}
 """
 
 def save_transcript(text):
     """인식된 텍스트를 타임스탬프 파일로 저장"""
-    if not os.path.exists(RESULTS_DIR):
-        os.makedirs(RESULTS_DIR)
+    if not os.path.exists(TRANSCRIPT_DIR):
+        os.makedirs(TRANSCRIPT_DIR)
         
     if not text.strip():
         print("저장할 텍스트가 없습니다.")
         return
     
     filename = f"transcript_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-    filepath = os.path.join(RESULTS_DIR, filename)
+    filepath = os.path.join(TRANSCRIPT_DIR, filename)
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(text)
+    print(f"\n[저장 완료] 파일명: {filepath}")
+
+def save_result(result_data):
+    """결과 json을 타임스탬프 파일로 저장"""
+    if not os.path.exists(RESULT_DIR):
+        os.makedirs(RESULT_DIR)
+        
+    if not result_data:
+        print("저장할 데이터가 없습니다.")
+        return
+    
+    now = datetime.now()
+    
+    filename = f"result_{now.strftime('%Y%m%d_%H%M%S')}.json"
+    filepath = os.path.join(RESULT_DIR, filename)
+
+    # result_data가 문자열일 경우 JSON 객체로 파싱
+    if isinstance(result_data, str):
+        try:
+            # LLM 응답이 ```json ... ``` 형식으로 감싸져 오는 경우, JSON 부분만 추출
+            json_str = result_data
+            if '```json' in json_str:
+                json_str = json_str.split('```json', 1)[1].rsplit('```', 1)[0]
+            
+            # 가장 바깥의 { }를 찾아 JSON을 추출
+            start = json_str.find('{')
+            end = json_str.rfind('}')
+            if start != -1 and end != -1:
+                json_str = json_str[start:end+1]
+
+            result_data = json.loads(json_str.strip())
+        except (json.JSONDecodeError, IndexError):
+            print(f"[오류] 전달된 데이터에서 유효한 JSON을 파싱할 수 없습니다.")
+            return
+    
+    # 에러 형식인지 확인
+    if isinstance(result_data, dict) and "error" in result_data:
+        print("[정보] 안내방송이 아닌 것으로 판단되어 저장하지 않습니다.")
+        return
+            
+    # create_timestamp, is_view 필드 추가
+    if isinstance(result_data, dict):
+        result_data['create_time'] = now.strftime('%Y%m%d_%H%M%S')
+        result_data['is_view'] = False
+    else:
+        print(f"[오류] 데이터가 딕셔너리 형태가 아니므로 필드를 추가할 수 없습니다.")
+        return
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(result_data, f, ensure_ascii=False, indent=4)
+
     print(f"\n[저장 완료] 파일명: {filepath}")
 
 def main():
@@ -182,7 +241,9 @@ def main():
                             )
                             print("\n--- LLM 응답 ---")
                             print(llm_response)
+                            save_result(llm_response)
                             print("------------------")
+
                         except Exception as e:
                             print(f"\n[LLM 오류] 응답 생성 중 오류가 발생했습니다: {e}")
 

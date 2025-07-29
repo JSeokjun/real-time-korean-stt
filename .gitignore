@@ -18,6 +18,7 @@ Thumbs.db
 
 # Generated files
 results/
+transcripts/
 
 # Model files
 models/*
