@@ -119,7 +119,8 @@ class GemmaRK3588:
             f"-DRKLLM_RUNTIME_DIR={rkllm_runtime_dir}",
             ".."
         ]
-        make_cmd = ["make", "-j4"]
+        # 자세한 디버깅을 위해 -j4(병렬 빌드) 옵션을 제거하고 VERBOSE=1을 추가합니다.
+        make_cmd = ["make", "VERBOSE=1"]
 
         try:
             print(f"CMake 실행: {' '.join(cmake_cmd)}")
